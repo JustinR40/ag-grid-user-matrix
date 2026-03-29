@@ -5,14 +5,19 @@ import { ICellRendererParams } from 'ag-grid-community';
 const MEMBER_OPTIONS = ['Not Member', 'Member', 'Owner'];
 const STATUS_COLORS = {
   'Not Member': { bg: '#e0e0e0', text: '#424242' },
-  'Member': { bg: '#3b82f6', text: '#ffffff' },
-  'Owner': { bg: '#f59e0b', text: '#ffffff' },
+  Member: { bg: '#3b82f6', text: '#ffffff' },
+  Owner: { bg: '#f59e0b', text: '#ffffff' },
 };
 
 @Component({
   selector: 'app-membership-status-cell',
   template: `
-    <button (click)="onCycle()" class="status-button" [style.background-color]="getCurrentColor().bg" [style.color]="getCurrentColor().text">
+    <button
+      (click)="onCycle()"
+      class="status-button"
+      [style.background-color]="getCurrentColor().bg"
+      [style.color]="getCurrentColor().text"
+    >
       {{ selectedValue() }}
     </button>
   `,

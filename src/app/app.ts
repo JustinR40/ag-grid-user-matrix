@@ -1,16 +1,18 @@
-import { Component, signal, computed } from '@angular/core';
+import { Component, signal, computed, ViewChild } from '@angular/core';
 import { AgGridAngular } from 'ag-grid-angular'; // Angular Data Grid Component
 import type { ColDef } from 'ag-grid-community'; // Column Definition Type Interface
 
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { MembershipStatusCell } from './membership-status-cell/membership-status-cell';
 import { GroupFilter } from './group-filter/group-filter';
+import { MemberTypeFilter } from './member-type-filter/member-type-filter';
 import { GroupFilters } from './group-filters/group-filters';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 // Constants
 const MEMBER_OPTIONS = ['Not Member', 'Member', 'Owner'];
+const MEMBER_TYPES = ['Application', 'User', 'Group'];
 const BASE_USERS = [
   { name: 'Alice Johnson', email: 'alice.johnson@example.com' },
   { name: 'Bob Smith', email: 'bob.smith@example.com' },
@@ -68,13 +70,13 @@ const BASE_USERS = [
 interface IRow {
   name: string;
   email: string;
+  memberType: string;
   [key: string]: any; // Allow additional properties for dynamic groups
 }
 
 @Component({
   selector: 'app-root',
-  imports: [AgGridAngular, MembershipStatusCell, GroupFilter, GroupFilters],
-  // templateUrl: './app.html',
+  imports: [AgGridAngular, GroupFilters],
   template: `
     <div class="content" style="width: 100%; height: 100%; display: flex; flex-direction: column;">
       <app-group-filters
@@ -84,9 +86,11 @@ interface IRow {
         [groupCount]="filteredGroups().length"
         (typeFilterChange)="setTypeFilter($event)"
         (countryFilterChange)="setCountryFilter($event)"
+        (clearFilters)="onClearFilters()"
       />
       <!-- The AG Grid component, with Dimensions, CSS Theme, Row Data, and Column Definition -->
       <ag-grid-angular
+        #gridApi
         style="flex: 1; width: 100%;"
         [rowData]="rowData()"
         [columnDefs]="colDefs()"
@@ -98,36 +102,49 @@ interface IRow {
   styleUrl: './app.scss',
 })
 export class App {
+  @ViewChild('gridApi', { static: false }) gridApi!: AgGridAngular;
   protected readonly title = signal('ag-grid');
   protected readonly selectedType = signal<'all' | 'service' | 'data' | 'users'>('all');
   protected readonly selectedCountry = signal<'all' | string>('all');
 
   readonly allGroups = [
-    // Service groups
-    'service-us-data-manager',
-    'service-us-ext-partner',
-    'service-us-geoscience',
-    'service-us-geophysicist',
-    'service-gb-data-manager',
-    'service-gb-ext-partner',
-    'service-gb-geoscience',
-    'service-gb-geophysicist',
-    'service-de-data-manager',
-    'service-de-ext-partner',
-    'service-de-geoscience',
-    'service-de-geophysicist',
-    'service-fr-data-manager',
-    'service-fr-ext-partner',
-    'service-fr-geoscience',
-    'service-fr-geophysicist',
-    'service-jp-data-manager',
-    'service-jp-ext-partner',
-    'service-jp-geoscience',
-    'service-jp-geophysicist',
-    'service-ca-data-manager',
-    'service-ca-ext-partner',
-    'service-ca-geoscience',
-    'service-ca-geophysicist',
+    // OSDU Service groups
+    'service-search-viewer',
+    'service-search-editor',
+    'service-search-admin',
+    'service-storage-viewer',
+    'service-storage-editor',
+    'service-storage-admin',
+    'service-delivery-viewer',
+    'service-delivery-editor',
+    'service-delivery-admin',
+    'service-entitlements-viewer',
+    'service-entitlements-editor',
+    'service-entitlements-admin',
+    'service-schema-viewer',
+    'service-schema-editor',
+    'service-schema-admin',
+    'service-workflow-viewer',
+    'service-workflow-editor',
+    'service-workflow-admin',
+    'service-indexing-viewer',
+    'service-indexing-editor',
+    'service-indexing-admin',
+    'service-legal-viewer',
+    'service-legal-editor',
+    'service-legal-admin',
+    'service-compliance-viewer',
+    'service-compliance-editor',
+    'service-compliance-admin',
+    'service-notification-viewer',
+    'service-notification-editor',
+    'service-notification-admin',
+    'service-reference-viewer',
+    'service-reference-editor',
+    'service-reference-admin',
+    'service-partition-viewer',
+    'service-partition-editor',
+    'service-partition-admin',
     // Data groups
     'data-us-data-manager',
     'data-us-ext-partner',
@@ -172,17 +189,6 @@ export class App {
     'users-fr-geophysicist',
   ];
 
-  protected readonly uniqueCountries = computed(() => {
-    const countries = new Set<string>();
-    this.allGroups.forEach((group) => {
-      const parts = group.split('-');
-      if (parts.length >= 2) {
-        countries.add(parts[1]);
-      }
-    });
-    return Array.from(countries).sort();
-  });
-
   protected readonly filteredGroups = computed(() => {
     let groups = this.allGroups;
     const type = this.selectedType();
@@ -204,7 +210,9 @@ export class App {
     return groups;
   });
 
-  protected readonly rowData = computed(() => this.generateRowData(BASE_USERS, this.filteredGroups()));
+  protected readonly rowData = computed(() =>
+    this.generateRowData(BASE_USERS, this.filteredGroups()),
+  );
   protected readonly colDefs = computed(() => this.generateColumnDefs(this.filteredGroups()));
 
   defaultColDef: ColDef = {};
@@ -217,6 +225,17 @@ export class App {
     this.selectedCountry.set(country);
   }
 
+  onClearFilters(): void {
+    // Reset type and country filters
+    this.selectedType.set('all');
+    this.selectedCountry.set('all');
+
+    // Clear grid filters
+    if (this.gridApi?.api) {
+      this.gridApi.api.setFilterModel(null);
+    }
+  }
+
   /**
    * Generates a random member status from the available options
    */
@@ -225,11 +244,18 @@ export class App {
   }
 
   /**
+   * Generates a random member type
+   */
+  private getRandomMemberType(): string {
+    return MEMBER_TYPES[Math.floor(Math.random() * MEMBER_TYPES.length)];
+  }
+
+  /**
    * Generates row data with user info and random group memberships
    */
   private generateRowData(baseUsers: typeof BASE_USERS, groups: string[]): IRow[] {
     return baseUsers.map((user) => {
-      const row: IRow = { ...user };
+      const row: IRow = { ...user, memberType: this.getRandomMemberType() };
       groups.forEach((group) => {
         row[group] = this.getRandomMemberStatus();
       });
@@ -257,6 +283,15 @@ export class App {
         autoHeight: false,
         lockPosition: true,
         filter: 'agTextColumnFilter',
+      },
+      {
+        field: 'memberType',
+        headerName: 'Member Type',
+        pinned: 'left',
+        autoHeight: false,
+        lockPosition: true,
+        editable: false,
+        filter: MemberTypeFilter,
       },
     ];
 
